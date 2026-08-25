@@ -1,0 +1,54 @@
+<!--
+locked: true
+-->
+<page title="Browse a file space - Admin">
+<content>
+  <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/my-files/components/FileSpace.js"></script>
+
+  <div class="p">
+    <p class="mb">
+      <a class="btn" href="/admin/extension/kempo-user-dirs/">
+        <k-icon name="arrow" direction="left"></k-icon> All spaces
+      </a>
+    </p>
+
+    <h1 id="heading">File space</h1>
+    <p class="tc-muted" id="subheading"></p>
+
+    <div id="space"></div>
+  </div>
+
+  <script type="module">
+    import { getSpace } from '/my-files/sdk.js';
+
+    /*
+      The same element the member sees on their own page, pointed at somebody else's space with
+      `user-id`. Every route it calls checks `userdirs:others:browse` or `:manage` for that case —
+      so an admin without the manage permission gets the same screen with the write controls
+      absent, from one implementation rather than a read-only copy of it.
+    */
+    const userId = new URLSearchParams(location.search).get('userId');
+
+    if(!userId){
+      document.getElementById('subheading').textContent = 'No user was named in the link.';
+    } else {
+      const [error, data] = await getSpace({ userId });
+
+      if(error){
+        document.getElementById('subheading').textContent = error.msg;
+      } else {
+        const who = data.space.user;
+        document.getElementById('heading').textContent = who?.name || who?.email || 'File space';
+        document.getElementById('subheading').textContent = who?.email
+          ? `${who.email} · ${userId}`
+          : `Deleted account · ${userId}`;
+
+        const element = document.createElement('k-udirs-file-space');
+        element.setAttribute('user-id', userId);
+        document.getElementById('space').appendChild(element);
+      }
+    }
+  </script>
+</content>
+</page>

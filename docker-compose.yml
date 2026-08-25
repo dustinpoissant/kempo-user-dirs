@@ -1,0 +1,23 @@
+# Database for kempo-user-dirs' own test suite. The other kempo repos have already claimed 5433
+# (kempo-demo), 5434 (kempo), 5435 (kempo-media), 5436 (kempo-files) and 5437 (kempo-thumbs), so
+# this one takes 5438 — they can all be up at once.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kempo-user-dirs-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kempo
+      POSTGRES_PASSWORD: kempo
+      POSTGRES_DB: kempo_user_dirs_test
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kempo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  postgres_test_data:

@@ -1,0 +1,373 @@
+<!--
+locked: true
+-->
+<page title="User Files - Admin">
+<content>
+  <script type="module" src="/kempo/components/Permission.js"></script>
+  <script type="module" src="/kempo-ui/components/Table.js"></script>
+  <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/kempo-ui/components/Dialog.js"></script>
+  <script type="module" src="/my-files/components/QuotaMeter.js"></script>
+  <script type="module" src="/admin/extension/kempo-user-dirs/components/PlanEditor.js"></script>
+
+  <div class="p">
+    <h1>User Files</h1>
+    <p class="tc-muted">
+      A private folder for each member, stored in the file library under
+      <code id="rootFolder">users/</code>. Nobody has one until they hold
+      <code>userdirs:access</code> — normally by being added to the
+      <strong>kempo-user-dirs:member</strong> group, which is the point where a paid tier would
+      eventually hook in.
+    </p>
+
+    <k-permission has="userdirs:access">
+      <p>
+        <a class="btn" href="/my-files/" target="_blank" rel="noopener">
+          <k-icon name="folder-open"></k-icon> Open my own file space
+        </a>
+      </p>
+    </k-permission>
+
+    <k-permission has="userdirs:others:browse">
+      <h2>Spaces</h2>
+
+      <div class="d-f mb" style="gap: var(--spacer_h); align-items: center; flex-wrap: wrap;">
+        <input type="search" id="filter" placeholder="Filter by name or email…" style="width: 18rem;" />
+        <span class="flex"></span>
+        <span class="small tc-muted" id="totals"></span>
+        <button class="btn small" id="recalculateAll">
+          <k-icon name="restart_alt"></k-icon> Recalculate all
+        </button>
+      </div>
+
+      <k-table id="spaces" placeholder="No user has a file space yet."></k-table>
+    </k-permission>
+
+    <k-permission has="userdirs:provision">
+      <h2>Create a space</h2>
+      <p class="small tc-muted">
+        Only users who already hold <code>userdirs:access</code> appear here. Spaces are also
+        created automatically the first time an eligible member opens theirs, unless the
+        <code>auto_provision</code> setting is turned off.
+      </p>
+      <div class="d-f mb" style="gap: var(--spacer_h); align-items: flex-end; flex-wrap: wrap;">
+        <label class="d-b">
+          <span class="small tc-muted d-b">Find a user</span>
+          <input type="search" id="eligibleSearch" placeholder="Name or email…" style="width: 18rem;" />
+        </label>
+        <label class="d-b">
+          <span class="small tc-muted d-b">User</span>
+          <select id="eligibleUser" style="width: 20rem;"></select>
+        </label>
+        <label class="d-b">
+          <span class="small tc-muted d-b">Plan</span>
+          <select id="newPlan" style="width: 14rem;"></select>
+        </label>
+        <button class="btn primary" id="provision">Create space</button>
+      </div>
+    </k-permission>
+
+    <k-permission has="userdirs:quotas">
+      <h2>Storage plans</h2>
+      <p class="small tc-muted">
+        A plan is a named allowance many spaces can share, so changing what a tier is worth is one
+        edit rather than one per member. Leave a limit blank for unlimited — which is how this
+        ships, so the feature works before anybody has decided what to charge for it.
+      </p>
+      <k-udirs-plan-editor id="plans"></k-udirs-plan-editor>
+    </k-permission>
+  </div>
+
+  <script type="module">
+    import Toast from '/kempo-ui/components/Toast.js';
+    import Dialog from '/kempo-ui/components/Dialog.js';
+    import { html } from '/kempo-ui/lit-all.min.js';
+    import { getAllCurrentUserPermissions } from '/kempo/sdk.js';
+    import formatBytes, { toBytes, UNITS } from '/my-files/utils/formatBytes.js';
+    import {
+      listSpaces, provisionSpace, updateSpace, deprovisionSpace,
+      recalculateUsage, findEligibleUsers, listPlans,
+    } from '/my-files/sdk.js';
+
+    await customElements.whenDefined('k-table');
+
+    /*
+      These decide which controls get drawn, nothing more. Every one of them is checked again on
+      the route that would act on it.
+    */
+    const [permError, permData] = await getAllCurrentUserPermissions();
+    const permissions = new Set(permError ? [] : (permData?.permissions || []));
+    const canQuota = permissions.has('userdirs:quotas');
+    const canProvision = permissions.has('userdirs:provision');
+
+    const $ = id => document.getElementById(id);
+
+    let spaces = [];
+    let plans = [];
+
+    /*
+      Spaces table
+    */
+
+    const table = $('spaces');
+
+    const openSpace = userId => window.open(`/admin/extension/kempo-user-dirs/browse?userId=${encodeURIComponent(userId)}`, '_blank', 'noopener');
+
+    const changeLimit = async space => {
+      const current = space.quotaOverrideBytes;
+      const $dialog = Dialog.create(html`
+        <div class="p">
+          <label class="d-b mb">
+            <span class="small tc-muted d-b">Plan</span>
+            <select id="dlgPlan" class="full">
+              <option value="">Use the default plan</option>
+              ${plans.map(plan => html`
+                <option value=${plan.id} ?selected=${plan.id === space.planId}>
+                  ${plan.name} — ${formatBytes(plan.quotaBytes)}
+                </option>
+              `)}
+            </select>
+          </label>
+
+          <label class="d-b">
+            <span class="small tc-muted d-b">Limit just for this person</span>
+            <div class="d-f" style="gap: var(--spacer_q);">
+              <input type="number" id="dlgAmount" min="0" step="any" class="flex" placeholder="Leave blank to use the plan"
+                .value=${current === null || current === undefined ? '' : current / 1000 ** 3} />
+              <select id="dlgUnit" style="width: auto;">
+                ${UNITS.map(unit => html`<option value=${unit} ?selected=${unit === 'GB'}>${unit}</option>`)}
+              </select>
+            </div>
+          </label>
+          <p class="small tc-muted mt">An override replaces the plan's limit rather than adding to it.</p>
+        </div>
+      `, {
+        title: `Storage for ${space.user?.name || space.user?.email || space.userId}`,
+        confirmText: 'Save',
+        confirmClasses: 'primary ml',
+        cancelText: 'Cancel',
+        confirmAction: async () => {
+          const amount = $dialog.querySelector('#dlgAmount').value.trim();
+          const [error] = await updateSpace({
+            userId: space.userId,
+            planId: $dialog.querySelector('#dlgPlan').value || null,
+            quotaOverrideBytes: amount === '' ? null : toBytes(amount, $dialog.querySelector('#dlgUnit').value),
+          });
+          if(error) return Toast.error(error.msg);
+          Toast.success('Saved');
+          await loadSpaces();
+        },
+      });
+    };
+
+    const toggleSuspended = async space => {
+      const [error] = await updateSpace({ userId: space.userId, suspended: !space.suspended });
+      if(error) return Toast.error(error.msg);
+      Toast.success(space.suspended ? 'Restored' : 'Suspended');
+      await loadSpaces();
+    };
+
+    const removeSpace = async space => {
+      let deleteFiles = false;
+      const $dialog = Dialog.create(html`
+        <div class="p">
+          <p>Remove the file space for <strong>${space.user?.name || space.userId}</strong>?</p>
+          <label class="d-f mt" style="gap: var(--spacer_q); align-items: center;">
+            <input type="checkbox" id="dlgDeleteFiles" />
+            <span>Also delete every file in it</span>
+          </label>
+          <p class="small tc-muted mt">
+            Left unchecked, the folder stays in the library and re-creating the space picks it back
+            up with everything still in it. Checked, ${formatBytes(space.bytesUsed)} is deleted and
+            cannot be recovered.
+          </p>
+        </div>
+      `, {
+        title: 'Remove space',
+        confirmText: 'Remove',
+        confirmClasses: 'danger ml',
+        cancelText: 'Cancel',
+        confirmAction: async () => {
+          deleteFiles = $dialog.querySelector('#dlgDeleteFiles').checked;
+          const [error, result] = await deprovisionSpace(space.userId, { deleteFiles });
+          if(error) return Toast.error(error.msg);
+          Toast.success(result.filesDeleted ? `Removed, ${result.filesDeleted} files deleted` : 'Removed');
+          await loadSpaces();
+        },
+      });
+    };
+
+    const actionButton = (label, className, handler) => {
+      const button = document.createElement('button');
+      button.className = `small ${className}`;
+      button.textContent = label;
+      button.addEventListener('click', handler);
+      return button;
+    };
+
+    table.fields = [
+      {
+        name: 'user', label: 'User', size: 240, editable: false,
+        calculator: record => record.user
+          ? `${record.user.name || '—'} (${record.user.email})`
+          : `Deleted account (${record.userId})`,
+      },
+      {
+        name: 'plan', label: 'Plan', size: 140, editable: false,
+        calculator: record => record.plan?.name || 'Default',
+      },
+      {
+        name: 'usage', label: 'Used', size: 240, editable: false,
+        calculator: record => {
+          const meter = document.createElement('k-udirs-quota-meter');
+          meter.bytesUsed = record.bytesUsed;
+          meter.limitBytes = record.limitBytes;
+          meter.suspended = record.suspended;
+          meter.compact = true;
+          return meter;
+        },
+      },
+      {
+        name: 'status', label: 'Status', size: 110, editable: false,
+        calculator: record => {
+          if(record.orphaned) return 'Orphaned';
+          if(record.suspended) return 'Suspended';
+          return 'Active';
+        },
+      },
+      {
+        name: 'open', label: '', size: 90, editable: false,
+        calculator: record => actionButton('Open', '', () => openSpace(record.userId)),
+      },
+    ];
+
+    if(canQuota){
+      table.fields.push({
+        name: 'limit', label: '', size: 100, editable: false,
+        calculator: record => actionButton('Storage', '', () => changeLimit(record)),
+      }, {
+        name: 'suspend', label: '', size: 110, editable: false,
+        calculator: record => actionButton(record.suspended ? 'Restore' : 'Suspend', '', () => toggleSuspended(record)),
+      });
+    }
+
+    if(canProvision){
+      table.fields.push({
+        name: 'remove', label: '', size: 100, editable: false,
+        calculator: record => actionButton('Remove', 'danger', () => removeSpace(record)),
+      });
+    }
+
+    const applyFilter = () => {
+      const term = $('filter').value.trim().toLowerCase();
+      const visible = term
+        ? spaces.filter(space => `${space.user?.name || ''} ${space.user?.email || ''} ${space.userId}`.toLowerCase().includes(term))
+        : spaces;
+
+      table.records = visible;
+
+      const used = spaces.reduce((sum, space) => sum + Number(space.bytesUsed || 0), 0);
+      $('totals').textContent = `${spaces.length} space${spaces.length === 1 ? '' : 's'} · ${formatBytes(used)} stored`;
+    };
+
+    async function loadSpaces(){
+      const [error, data] = await listSpaces();
+      if(error) return Toast.error(error.msg || 'Could not load the spaces');
+      spaces = data.spaces;
+      applyFilter();
+    }
+
+    $('filter')?.addEventListener('input', applyFilter);
+
+    $('recalculateAll')?.addEventListener('click', async event => {
+      event.target.disabled = true;
+      const [error, result] = await recalculateUsage();
+      event.target.disabled = false;
+      if(error) return Toast.error(error.msg);
+      Toast.success(`Re-measured ${result.recalculated} space${result.recalculated === 1 ? '' : 's'}`);
+      await loadSpaces();
+    });
+
+    /*
+      Plans, shared with the provisioning form's plan picker
+    */
+
+    const refreshPlans = async () => {
+      const [error, data] = await listPlans();
+      if(error) return;
+      plans = data.plans;
+
+      const select = $('newPlan');
+      if(!select) return;
+      select.innerHTML = '';
+
+      const fallback = document.createElement('option');
+      fallback.value = '';
+      fallback.textContent = 'Default plan';
+      select.appendChild(fallback);
+
+      for(const plan of plans){
+        const option = document.createElement('option');
+        option.value = plan.id;
+        option.textContent = `${plan.name} — ${formatBytes(plan.quotaBytes)}`;
+        select.appendChild(option);
+      }
+    };
+
+    $('plans')?.addEventListener('plans-changed', async () => {
+      await refreshPlans();
+      await loadSpaces();
+    });
+
+    /*
+      Provisioning
+    */
+
+    const loadEligible = async () => {
+      const select = $('eligibleUser');
+      if(!select) return;
+
+      const [error, data] = await findEligibleUsers($('eligibleSearch').value.trim());
+      select.innerHTML = '';
+
+      if(error || !data.users.length){
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = error ? error.msg : 'No eligible users without a space';
+        select.appendChild(option);
+        return;
+      }
+
+      for(const user of data.users){
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = `${user.name || '—'} (${user.email})`;
+        select.appendChild(option);
+      }
+    };
+
+    let eligibleTimer;
+    $('eligibleSearch')?.addEventListener('input', () => {
+      clearTimeout(eligibleTimer);
+      eligibleTimer = setTimeout(loadEligible, 250);
+    });
+
+    $('provision')?.addEventListener('click', async event => {
+      const userId = $('eligibleUser').value;
+      if(!userId) return Toast.error('Pick a user first');
+
+      event.target.disabled = true;
+      const [error] = await provisionSpace(userId, $('newPlan').value || null);
+      event.target.disabled = false;
+
+      if(error) return Toast.error(error.msg);
+      Toast.success('Space created');
+      await Promise.all([loadSpaces(), loadEligible()]);
+    });
+
+    await refreshPlans();
+    await loadSpaces();
+    await loadEligible();
+  </script>
+</content>
+</page>

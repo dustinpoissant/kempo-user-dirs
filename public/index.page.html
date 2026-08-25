@@ -1,0 +1,51 @@
+<!--
+locked: true
+template: default
+-->
+<page title="My Files">
+<content>
+  <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/my-files/components/FileSpace.js"></script>
+
+  <h1 class="mb">My Files</h1>
+
+  <div id="gate"></div>
+  <div id="space"></div>
+
+  <script type="module">
+    import { html, render } from '/kempo-ui/lit-all.min.js';
+    import { getAllCurrentUserPermissions } from '/kempo/sdk.js';
+
+    /*
+      The page decides what to *say* when somebody has no space; the API decides whether they get
+      one. Every route behind this element checks `userdirs:access` again, so this is a better
+      error message rather than a security boundary — a signed-out visitor who edits it away still
+      gets a 401 from the first request the component makes.
+    */
+    const gate = document.getElementById('gate');
+    const space = document.getElementById('space');
+
+    const [error, data] = await getAllCurrentUserPermissions();
+    const permissions = new Set(error ? [] : (data?.permissions || []));
+
+    if(error?.code === 401){
+      render(html`
+        <p>You need to be signed in to see your files.</p>
+        <a class="btn primary" href="/login?redirect=${encodeURIComponent(location.pathname)}">Sign in</a>
+      `, gate);
+    } else if(!permissions.has('userdirs:access')){
+      render(html`
+        <p class="tc-muted">
+          Your account does not include personal file storage yet.
+        </p>
+        <p class="tc-muted small">
+          If you think it should, ask a site administrator to add you to the group that grants it.
+        </p>
+      `, gate);
+    } else {
+      const element = document.createElement('k-udirs-file-space');
+      space.appendChild(element);
+    }
+  </script>
+</content>
+</page>

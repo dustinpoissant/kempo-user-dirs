@@ -1,0 +1,63 @@
+{
+  "docs": "https://github.com/dustinpoissant/kempo-user-dirs#readme",
+  "git": "https://github.com/dustinpoissant/kempo-user-dirs",
+  "public-scope": "my-files",
+  "schema": "./server/db/schema.js",
+  "dependencies": ["kempo-files"],
+  "hooks": {
+    "file:before_upload": "./hooks/file-before-upload.js",
+    "file:uploaded": "./hooks/file-uploaded.js",
+    "file:deleted": "./hooks/file-deleted.js",
+    "file:before_download": "./hooks/file-before-download.js"
+  },
+  "permissions": [
+    { "name": "userdirs:access", "description": "Have a personal file space, and manage everything inside it" },
+    { "name": "userdirs:share", "description": "Make a file in your own space downloadable by anyone with the link" },
+    { "name": "userdirs:others:browse", "description": "Open and download from any user's space" },
+    { "name": "userdirs:others:manage", "description": "Upload to, rename, move and delete inside any user's space" },
+    { "name": "userdirs:provision", "description": "Create and remove user spaces" },
+    { "name": "userdirs:quotas", "description": "Change storage plans, per-user limits, and suspend or restore a space" }
+  ],
+  "settings": [
+    {
+      "name": "root_folder",
+      "value": "users",
+      "type": "string",
+      "description": "The folder in the file library that every user space is created inside"
+    },
+    {
+      "name": "auto_provision",
+      "value": "true",
+      "type": "boolean",
+      "description": "Create a user's space the first time they open it. With this off, an admin has to create it first"
+    },
+    {
+      "name": "usage_stale_minutes",
+      "value": "60",
+      "type": "number",
+      "description": "How old a cached usage figure may get before opening a space recalculates it in the background"
+    }
+  ],
+  "groups": [
+    {
+      "name": "kempo-user-dirs:member",
+      "description": "Has a personal file space and can share files out of it. This is the group that gates the feature — nobody has a space until they are in it",
+      "permissions": [
+        "userdirs:access",
+        "userdirs:share"
+      ]
+    },
+    {
+      "name": "kempo-user-dirs:administrator",
+      "description": "Manages everyone's spaces: browsing, provisioning, storage plans and per-user limits",
+      "permissions": [
+        "userdirs:access",
+        "userdirs:share",
+        "userdirs:others:browse",
+        "userdirs:others:manage",
+        "userdirs:provision",
+        "userdirs:quotas"
+      ]
+    }
+  ]
+}
