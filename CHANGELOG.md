@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0
+All notable changes to `kempo-user-dirs` are documented in this file.
+
+## [Unreleased]
 
 First release.
 
