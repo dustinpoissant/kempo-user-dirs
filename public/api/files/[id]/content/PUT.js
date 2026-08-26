@@ -47,8 +47,9 @@ export default async (request, response) => {
   const [, maxUploadMb] = await getSetting('kempo-files', 'max_upload_size_mb', 250);
 
   /*
-    Never trusted, whoever is writing. Nothing in a user space is reviewed, so a file that somehow
-    arrived approved does not get to keep that through a content swap.
+    Never trusted, whoever is writing. The file's `reviewable: false` flag (set at upload) already
+    makes approval impossible, and replaceFileContent leaves that flag alone — so this only has to
+    say that a content swap never *grants* anything either.
   */
   const [error, file] = await replaceFileContent({
     id: existing.id,

@@ -71,6 +71,28 @@ Members are not given `files:download` at all; they use this extension's own dow
 
 ---
 
+## Uploads are never up for review
+
+Everything a member uploads is stored with kempo-files' `reviewable: false`. That is stronger than "arrives unapproved" — it means approval is impossible:
+
+- the file never appears in the file library's **Needs review** queue, so a member's holiday photos are not somebody's review backlog
+- an admin holding `files:upload_trusted` gets a **409** if they try to approve it, from the library's own screens or straight from the API
+- it is served as inert text at the response regardless, so even a flag set some other way changes nothing
+
+This matters because the alternative is a real hole. A personal folder accepts anything, uploaded by anyone with a subscription; approving one of those files means the site will hand it back as an executable script on its own origin. There is nobody in a position to make that judgement, so the judgement is removed rather than left available.
+
+**What this does not affect is reading your files.** The bytes are stored and returned untouched, and only the browser's *treatment* differs by type:
+
+| Type | How it comes back |
+|---|---|
+| Images, video, audio, archives, fonts, 3D models | Their real content type — previews inline, `<img src>` works, video seeks |
+| `.js`, `.html`, `.css`, `.svg`, `.json`, any `text/*` | `text/plain` + `nosniff` — readable as source, impossible to execute or render as markup |
+| PDFs, Office files, unknown binaries | `application/octet-stream` as an attachment — downloads rather than previewing in the tab |
+
+That last row is the one real difference from a consumer file-sync product, and it is deliberate: a PDF viewer runs script and an Office file carries macros, so an inline-rendered one on your own origin is a genuine vector rather than a theoretical one. Previewing those safely means a separate origin or a sandboxed frame, which is a larger piece of work than a header change.
+
+---
+
 ## Storage plans and limits
 
 A **plan** is a named allowance many spaces share, so changing what a tier is worth is one edit rather than one per member. A per-user **override** replaces a plan's number outright rather than adding to it — "plan 10 GB, override 25 GB" means 25, because the second time somebody has to work out why a user is at 37 the design has already failed.
@@ -191,7 +213,7 @@ Not gaps — decisions:
 
 - **No sharing with named users.** A file is private or it has a public link. Per-user grants need an ACL table and a UI for it, which is a larger feature than this.
 - **No aliases.** kempo-files lets a public file claim a bare path like `scripts/app.js` on the site. That is a site-wide namespace, and handing every member of a paid tier the ability to claim URLs on the front page is not a feature. Shared files get the canonical `/kempo-files/api/files/<id>` link.
-- **Nothing in a user space is ever `trusted`.** Nobody reviews these files, so kempo-files serves an uploaded script as inert text. That is the correct answer here and there is no control to change it.
+- **Nothing in a user space can ever be approved.** See *Uploads are never up for review* above — this is enforced, not merely defaulted, and there is no control to change it.
 - **No recursive folder delete from the browser.** kempo-files refuses to delete a folder with anything in it, and that refusal is inherited rather than worked around. One request that destroys an arbitrary subtree with no undo is worth making impossible. (An admin removing a whole space *can* purge it, explicitly.)
 - **No versioning, no trash, no undo.** Deleting is final, exactly as in kempo-files.
 - **No cleanup when a user account is deleted.** kempo fires no hook for it. Orphaned spaces are reported on the admin screen instead.

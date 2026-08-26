@@ -76,8 +76,13 @@ export default async (request, response) => {
     file into somebody's folder is giving it to them — leaving it owned by the admin would make the
     member unable to touch their own file through kempo-files' own ownership rules.
 
-    Never trusted. A file space accepts anything, and nobody has reviewed it: an uploaded script is
-    served as inert text by kempo-files' own serving rules, which is exactly right here.
+    `reviewable: false` is the important one. Not merely "unapproved" but *unapprovable*: a
+    personal folder is not site content, nobody is ever going to review it, and an admin approving
+    a member's uploaded script would let it execute on this site's own origin. kempo-files enforces
+    that at every layer — it refuses to grant trust, keeps these out of its Needs review queue, and
+    serves them as inert text at the response whatever any flag says.
+
+    So `trusted: false` here is belt and braces; the flag above is what makes it permanent.
   */
   const [storeError, file] = await storeUpload({
     name: filePart.filename,
@@ -86,6 +91,7 @@ export default async (request, response) => {
     altText: field('alt') || '',
     ownerId: context.space.userId,
     trusted: false,
+    reviewable: false,
     public: wantsPublic,
     maxBytes: Number(maxUploadMb) * 1024 * 1024,
   });

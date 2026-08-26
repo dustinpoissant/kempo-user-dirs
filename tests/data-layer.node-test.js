@@ -4,9 +4,9 @@ import { sql, eq } from 'drizzle-orm';
 import db from 'kempo/server/db/index.js';
 import { createUser, deleteUser, createSession } from 'kempo/server/sdk.js';
 import {
-  storeUpload, listFiles, deleteFile,
+  storeUpload, listFiles, deleteFile, setFileTrust, headersFor,
   createDirectory, listDirectories, deleteDirectory,
-  directoryPath, FILES_ROOT,
+  directoryPath,
 } from 'kempo-files/sdk';
 import { kempoUserDir, kempoUserDirPlan } from '../server/db/schema.js';
 import {
@@ -603,6 +603,73 @@ const suite = {
     if(result) return fail(`an ordinary library file was refused: ${result.msg}`);
 
     pass('the rest of the library keeps kempo-files own rules');
+  },
+
+  'a file uploaded into a space can never be approved to run': async ({ pass, fail }) => {
+    await purge();
+    const userId = await makeUser('unreviewable');
+
+    try {
+      const [, space] = await provisionSpace({ userId });
+
+      /*
+        Mirrors what public/api/files/POST.js stores. The flag is the whole guarantee: without it an
+        admin holding files:upload_trusted could approve a member's uploaded script from the file
+        library's own screens, and it would then execute on this site's origin — precisely the hole
+        a private file space must not open.
+      */
+      const [, file] = await storeUpload({
+        name: 'members-script.js',
+        data: bytes(10),
+        directoryId: space.directoryId,
+        ownerId: userId,
+        trusted: false,
+        reviewable: false,
+      });
+
+      if(file.reviewable !== false) return fail('the file was stored as reviewable');
+
+      const [trustError] = await setFileTrust({ id: file.id, trusted: true });
+      if(!trustError) return fail('a file in a user space was approved to run');
+      if(trustError.code !== 409) return fail(`expected a 409, got ${trustError.code}`);
+
+      // And it is inert at the response, which is the only place that ultimately matters.
+      const headers = headersFor({ ...file, trusted: true });
+      if(!headers['Content-Type'].startsWith('text/plain')){
+        return fail(`served as ${headers['Content-Type']} — a member's script must never come back executable`);
+      }
+
+      pass('a personal folder is outside the idea of approval entirely');
+    } finally {
+      await deleteUser(userId);
+    }
+  },
+
+  'a file in a space stays out of the library review queue': async ({ pass, fail }) => {
+    await purge();
+    const userId = await makeUser('queue');
+
+    try {
+      const [, space] = await provisionSpace({ userId });
+
+      await storeUpload({
+        name: 'personal.js', data: bytes(10), directoryId: space.directoryId, ownerId: userId, reviewable: false,
+      });
+
+      const [, shared] = await createDirectory({ name: 'site-assets', parentId: null, ownerId: 'someone-else' });
+      await storeUpload({ name: 'site.js', data: bytes(10), directoryId: shared.id, ownerId: 'someone-else' });
+
+      const [error, data] = await listFiles({ awaitingReview: true, limit: 100 });
+      if(error) return fail(error.msg);
+
+      const names = data.files.map(candidate => candidate.name);
+      if(names.includes('personal.js')) return fail("a member's document appeared in the site's review queue");
+      if(!names.includes('site.js')) return fail('a genuine review candidate went missing from the queue');
+
+      pass("members' files never become somebody's review backlog");
+    } finally {
+      await deleteUser(userId);
+    }
   },
 
   'a reservation can never drive usage below zero': async ({ pass, fail }) => {
