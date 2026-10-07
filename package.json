@@ -1,6 +1,6 @@
 {
   "name": "kempo-user-dirs",
-  "version": "0.1.2",
+  "version": "0.1.1",
   "description": "Private per-user file space for kempo — a personal folder each member can upload to, with plan-based storage quotas",
   "license": "MIT",
   "author": "Dustin Poissant",
