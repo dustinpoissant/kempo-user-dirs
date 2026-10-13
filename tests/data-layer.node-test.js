@@ -1,4 +1,5 @@
 import { mkdir, writeFile, rm, stat } from 'fs/promises';
+import { join } from 'path';
 import path from 'path';
 import { sql, eq } from 'drizzle-orm';
 import db from 'kempo/server/db/index.js';
@@ -64,6 +65,13 @@ const purge = async () => {
   for(const row of [...rows].sort((a, b) => depthOf(b) - depthOf(a))){
     await deleteDirectory({ id: row.id }).catch(() => {});
   }
+
+  /*
+    The library root also lives on disk, and what is on disk outlives a database. A run against a
+    fresh in-memory database has no row for a folder an earlier run left behind, and provisioning then
+    refuses to create it ("already exists on disk"). The suite owns this folder, so reset it too.
+  */
+  await rm(join(process.cwd(), 'files', 'users'), { recursive: true, force: true });
 };
 
 const makeUser = async label => {
