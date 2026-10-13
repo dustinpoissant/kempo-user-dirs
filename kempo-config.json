@@ -10,6 +10,21 @@
     "file:deleted": "./hooks/file-deleted.js",
     "file:before_download": "./hooks/file-before-download.js"
   },
+  "widgets": [
+    {
+      "key": "space",
+      "title": "My files",
+      "description": "How much of your private file space you have used.",
+      "icon": "folder",
+      "element": "k-udirs-widget",
+      "module": "/my-files/components/SpaceWidget.js",
+      "defaultWidth": 2,
+      "defaultHeight": 1,
+      "minWidth": 1,
+      "permission": "userdirs:access",
+      "priority": 72
+    }
+  ],
   "permissions": [
     { "name": "userdirs:access", "description": "Have a personal file space, and manage everything inside it" },
     { "name": "userdirs:share", "description": "Make a file in your own space downloadable by anyone with the link" },

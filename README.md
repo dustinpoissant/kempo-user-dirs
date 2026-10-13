@@ -241,3 +241,7 @@ The database-backed suite **skips itself when no database is reachable, which re
 ## License
 
 MIT
+
+## Dashboard widget
+
+Adds a **My files** widget to the kempo admin dashboard showing the signed-in user's file space usage against their plan limit, with a **Browse my files** button. It is declared in `widgets` in `kempo-config.json` and registered when the extension is installed or updated; people only see it if they hold its permission, and can hide, reorder or resize it from the dashboard's Customize dialog. Needs a kempo with the dashboard (see kempo's `docs/dashboard.md`); on an older kempo the entry is ignored.

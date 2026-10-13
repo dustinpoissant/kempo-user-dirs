@@ -4,6 +4,10 @@ All notable changes to `kempo-user-dirs` are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Dashboard widget.** A **My files** widget on the kempo admin dashboard showing the signed-in user's file space usage against their plan limit, with a **Browse my files** button, declared in `widgets` in `kempo-config.json`. Needs a kempo with the dashboard; ignored on older versions.
+
 First release.
 
 A private per-user file space built on kempo-files. Every uploaded byte is an ordinary kempo-files entry in an ordinary folder; this extension records only which folder belongs to whom and how much they may store there.
