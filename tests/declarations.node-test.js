@@ -164,18 +164,15 @@ export default {
     pass('declared defaults match the code’s own fallbacks');
   },
 
-  'the public scope in package.json is the one the code builds URLs from': async ({ pass, fail }) => {
+  'the declared public scope is the one the code builds URLs from': async ({ pass, fail }) => {
     /*
-      kempo's scope router reads `public-scope` out of package.json, while everything else this
-      extension declares lives in kempo-config.json — so the two can drift. Every URL in the browser
-      SDK and every component import is hardcoded to the scope; if package.json said something else,
-      the extension would install cleanly and 404 on its own assets.
+      kempo's scope router reads `public-scope` from kempo-config.json, the one place this extension
+      declares it. Every URL in the browser SDK and every component import is hardcoded to the scope; if
+      the config said something else, the extension would install cleanly and 404 on its own assets.
     */
-    const scope = pkg.kempo?.['public-scope'];
-    if(!scope) return fail('package.json declares no kempo.public-scope, so nothing under public/ would be served');
-    if(scope !== config['public-scope']){
-      return fail(`package.json says "${scope}", kempo-config.json says "${config['public-scope']}"`);
-    }
+    const scope = config['public-scope'];
+    if(!scope) return fail('kempo-config.json declares no public-scope, so nothing under public/ would be served');
+    if('kempo' in pkg) return fail('package.json has a kempo field; it lives in kempo-config.json only');
 
     const sdk = await readFile(path.join(root, 'public', 'sdk.js'), 'utf8');
     if(!sdk.includes(`'/${scope}/api'`)){
