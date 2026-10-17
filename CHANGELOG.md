@@ -4,6 +4,10 @@ All notable changes to `kempo-user-dirs` are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **The New folder icon ships with it** (`public/icons/create_new_folder.svg`, served at `/my-files/icons/`), used by `<k-icon src>`, instead of coming from kempo's shared set. `upload` and the file-kind glyphs stay there: other extensions use them too.
+
 ### Added
 
 - **Dashboard widget.** A **My files** widget on the kempo admin dashboard showing the signed-in user's file space usage against their plan limit, with a **Browse my files** button, declared in `widgets` in `kempo-config.json`. Needs a kempo with the dashboard; ignored on older versions.

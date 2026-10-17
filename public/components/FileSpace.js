@@ -333,7 +333,7 @@ export default class FileSpace extends ShadowComponent {
         />
         ${this.space.canWrite ? html`
           <button class="btn" @click=${this.newFolder}>
-            <k-icon name="create_new_folder"></k-icon> New folder
+            <k-icon src="/my-files/icons/create_new_folder.svg"></k-icon> New folder
           </button>
           <label class="btn primary upload">
             <k-icon name="upload"></k-icon> Upload
