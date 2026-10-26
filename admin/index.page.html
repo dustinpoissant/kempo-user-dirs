@@ -6,6 +6,7 @@ locked: true
   <script type="module" src="/kempo/components/Permission.js"></script>
   <script type="module" src="/kempo-ui/components/Table.js"></script>
   <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/kempo-ui/components/controls/TcOpen.js"></script>
   <script type="module" src="/kempo-ui/components/Dialog.js"></script>
   <script type="module" src="/my-files/components/QuotaMeter.js"></script>
   <script type="module" src="/admin/extension/kempo-user-dirs/components/PlanEditor.js"></script>
@@ -40,7 +41,9 @@ locked: true
         </button>
       </div>
 
-      <k-table id="spaces" placeholder="No user has a file space yet."></k-table>
+      <k-table id="spaces" open-on-click row-target="_blank" placeholder="No user has a file space yet.">
+        <kc-tc-open slot="before" target="_blank"></kc-tc-open>
+      </k-table>
     </k-permission>
 
     <k-permission has="userdirs:provision">
@@ -110,8 +113,6 @@ locked: true
     */
 
     const table = $('spaces');
-
-    const openSpace = userId => window.open(`/admin/extension/kempo-user-dirs/browse?userId=${encodeURIComponent(userId)}`, '_blank', 'noopener');
 
     const changeLimit = async space => {
       const current = space.quotaOverrideBytes;
@@ -207,7 +208,7 @@ locked: true
 
     table.fields = [
       {
-        name: 'user', label: 'User', size: 240, editable: false,
+        name: 'user', label: 'User', editable: false,
         calculator: record => record.user
           ? `${record.user.name || '—'} (${record.user.email})`
           : `Deleted account (${record.userId})`,
@@ -234,10 +235,6 @@ locked: true
           if(record.suspended) return 'Suspended';
           return 'Active';
         },
-      },
-      {
-        name: 'open', label: '', size: 90, editable: false,
-        calculator: record => actionButton('Open', '', () => openSpace(record.userId)),
       },
     ];
 
@@ -273,7 +270,7 @@ locked: true
     async function loadSpaces(){
       const [error, data] = await listSpaces();
       if(error) return Toast.error(error.msg || 'Could not load the spaces');
-      spaces = data.spaces;
+      spaces = data.spaces.map(space => ({ ...space, _url: `/admin/extension/kempo-user-dirs/browse?userId=${encodeURIComponent(space.userId)}` }));
       applyFilter();
     }
 

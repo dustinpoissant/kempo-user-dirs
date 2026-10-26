@@ -25,10 +25,10 @@
     "drizzle-orm": "^0.45.2"
   },
   "peerDependencies": {
-    "kempo": ">=4.7.0",
+    "kempo": ">=4.9.7",
     "kempo-files": ">=0.1.4",
     "kempo-server": ">=3.3.0",
-    "kempo-ui": ">=0.6.0"
+    "kempo-ui": ">=0.7.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.9",

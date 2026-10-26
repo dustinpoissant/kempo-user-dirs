@@ -46,3 +46,8 @@ A private per-user file space built on kempo-files. Every uploaded byte is an or
 
 - **kempo-files** — added `getDirectory`, `directoryAncestry` and `directorySubtree` to its SDK (walking a folder's ancestry is how containment is decided here), and a `reviewable` flag on files so member-supplied content can be marked permanently unapprovable. Requires the release carrying both (`>=0.1.4`).
 - **kempo core** — added `upload` and `create_new_folder` to the shared icon set (`>=4.2.39`). Both are generic file-management glyphs that were missing from every set kempo serves, and a missing icon renders as nothing at all with no error anywhere — which is what `tests/icons.node-test.js` now exists to catch.
+
+## [0.1.11] - 2026-10-26
+### Changed
+- The spaces list is a kempo-ui table. Clicking a row, or its open control, opens that user's space in a new tab. The Open button column is removed.
+- Requires kempo 4.9.7 (the admin lists use kempo-ui tables).
